@@ -49,7 +49,9 @@ echo "==> Tempo (traces)"
 IN_TRACES=1
 trace_services() { # newest trace that reached notification-service -> its distinct services
   local id
-  id=$(curl -fsS -G "$TEMPO/api/search" --data-urlencode 'q={resource.service.name="notification-service"}' \
+  # a trace that entered through the gateway and reached notification-service (via Kafka)
+  id=$(curl -fsS -G "$TEMPO/api/search" \
+         --data-urlencode 'q={resource.service.name="api-gateway"} && {resource.service.name="notification-service"}' \
          --data-urlencode limit=20 | jq -er '[.traces[]] | sort_by(.startTimeUnixNano) | last | .traceID')
   curl -fsS "$TEMPO/api/traces/$id" | jq -er '
     [(.batches // .resourceSpans)[] | .resource.attributes[] | select(.key=="service.name") | .value.stringValue]

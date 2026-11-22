@@ -26,6 +26,23 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- Web APIs for the actuator observation filter; each service brings its own stack (MVC or WebFlux) -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Observability baseline for every service -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
