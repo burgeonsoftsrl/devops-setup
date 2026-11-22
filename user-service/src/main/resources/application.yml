@@ -1,0 +1,25 @@
+server:
+  port: ${PORT:8081}
+
+spring:
+  application:
+    name: user-service
+  datasource:
+    # Local default: docker-compose Postgres. Prod (Neon), e.g.:
+    #   DB_URL=jdbc:postgresql://ep-xxx-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/users}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      # Free tiers have tight connection limits
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

@@ -1,0 +1,33 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: user-service
+              uri: ${USER_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/users/**
+            - id: order-service
+              uri: ${ORDER_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/orders/**
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+                allowed-methods: [GET, POST, PUT, DELETE, OPTIONS]
+                allowed-headers: "*"
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

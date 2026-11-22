@@ -1,0 +1,20 @@
+# Java / Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+*.log
+
+# IDE
+.idea/workspace.xml
+.idea/shelf/
+.vscode/
+*.swp
+.DS_Store
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Tilt
+.tilt-cache/
