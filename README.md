@@ -112,7 +112,7 @@ cd frontend && npm run build
 
 - **`ci.yml`** — on every pull request: `./mvnw verify`, Angular production build, and a Docker
   build of each service (no push).
-- **`deploy.yml`** — on push to `main`: runs the CI jobs, then for each service builds and pushes
+- **`deploy.yml`** — on push to `main`: runs the CI jobs, deploys the frontend to Cloudflare Pages, and for each service builds and pushes
   `ghcr.io/<owner>/devops-setup-<service>:{latest,<sha>}` and calls that service's Render deploy
   hook with `imgURL` set to the exact `<sha>` image. A missing hook secret only skips that deploy.
 
@@ -161,17 +161,21 @@ the matching GitHub secret above.
 
 ### 4. Cloudflare Pages (frontend)
 
-Workers & Pages → **Create → Pages → Connect to Git** → select this repo:
+The `devops-setup` Pages project is a **direct-upload** project, deployed by the `frontend` job in
+`deploy.yml` on every push to `main` (via `wrangler pages deploy`).
 
-| Setting | Value |
+| Repo setting | Value |
 |---|---|
-| Framework preset | None (or Angular) |
-| Root directory | `frontend` |
-| Build command | `npm run build:pages` |
-| Build output directory | `dist/frontend/browser` |
-| Env variable `API_URL` | `https://api-gateway-xxxx.onrender.com` |
-| Env variable `NODE_VERSION` | `22` |
+| Secret `CLOUDFLARE_API_TOKEN` | API token with *Account → Cloudflare Pages → Edit* |
+| Secret `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID |
+| Variable `API_URL` | Gateway URL, e.g. `https://api-gateway-xxxx.onrender.com` |
 
-`build:pages` writes `API_URL` into the production environment before `ng build`;
-`public/_redirects` provides SPA fallback routing. Every push to `main` redeploys the site, and PRs
-get preview URLs (covered by the `*.pages.dev` CORS pattern above).
+`npm run build:pages` writes `API_URL` into the production environment before `ng build`;
+`public/_redirects` provides SPA fallback routing. Manual deploy:
+
+```bash
+cd frontend
+API_URL=https://api-gateway-xxxx.onrender.com npm run build:pages
+CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
+  npx wrangler pages deploy dist/frontend/browser --project-name devops-setup --branch main
+```
