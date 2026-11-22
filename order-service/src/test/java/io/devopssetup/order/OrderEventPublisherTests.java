@@ -26,6 +26,6 @@ class OrderEventPublisherTests {
                 .orderCreated(new Order("o-1", 1L, "Book", 1, new BigDecimal("9.99"), Instant.now()));
 
         verify(publisher).publish(eq(Topics.ORDER_CREATED), eq("o-1"), any(OrderCreated.class));
-        assertThat(registry.get("orders.created").counter().count()).isEqualTo(1.0);
+        assertThat(registry.get("orders.placed").counter().count()).isEqualTo(1.0);
     }
 }

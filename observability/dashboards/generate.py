@@ -108,8 +108,8 @@ def business(svc):
         return [row("Business"), stat("Users registered (total)", f'sum(users_registered_total{{{s}}})', w=6),
                 ts("Registrations / min", [(f'sum(rate(users_registered_total{{{s}}}[{RATE}])) * 60', "users")], w=18)]
     if svc == "order-service":
-        return [row("Business & Kafka"), stat("Orders created (total)", f'sum(orders_created_total{{{s}}})', w=6),
-                ts("Orders / min", [(f'sum(rate(orders_created_total{{{s}}}[{RATE}])) * 60', "orders")], w=18)] + kafka_publish(svc) + [
+        return [row("Business & Kafka"), stat("Orders placed (total)", f'sum(orders_placed_total{{{s}}})', w=6),
+                ts("Orders / min", [(f'sum(rate(orders_placed_total{{{s}}}[{RATE}])) * 60', "orders")], w=18)] + kafka_publish(svc) + [
                 stat("Publish failures (total)", f'sum(events_published_seconds_count{{{s},outcome="failure"}}) or vector(0)', w=8)]
     if svc == "payment-service":
         return [row("Business"),

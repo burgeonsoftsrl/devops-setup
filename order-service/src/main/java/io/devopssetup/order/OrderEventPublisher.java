@@ -15,7 +15,7 @@ public class OrderEventPublisher {
 
     public OrderEventPublisher(EventPublisher publisher, MeterRegistry registry) {
         this.publisher = publisher;
-        this.ordersCreated = Counter.builder("orders.created").description("Orders created").register(registry);
+        this.ordersCreated = Counter.builder("orders.placed").description("Orders placed (OrderCreated published)").register(registry);
     }
 
     public void orderCreated(Order order) {

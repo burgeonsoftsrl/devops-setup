@@ -71,7 +71,7 @@
     },
     {
       "type": "stat",
-      "title": "Orders created (total)",
+      "title": "Orders placed (total)",
       "description": "",
       "datasource": {
         "type": "prometheus",
@@ -95,7 +95,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(orders_created_total{job=\"order-service\"})",
+          "expr": "sum(orders_placed_total{job=\"order-service\"})",
           "datasource": {
             "type": "prometheus",
             "uid": "${prom}"
@@ -144,7 +144,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(orders_created_total{job=\"order-service\"}[$__rate_interval])) * 60",
+          "expr": "sum(rate(orders_placed_total{job=\"order-service\"}[$__rate_interval])) * 60",
           "legendFormat": "orders",
           "datasource": {
             "type": "prometheus",

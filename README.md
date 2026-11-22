@@ -11,6 +11,7 @@ A zero-cost training monorepo for practising event-driven microservices + DevOps
 | `notification-service` | Spring Boot + Spring Data MongoDB, Kafka consumer | :8084 → Mongo, Kafka | Render + **Atlas** (db `notifications`) |
 | Kafka | Apache Kafka 4 (KRaft) | :9092 | managed free tier (see [Kafka in production](#kafka-in-production)) |
 | `frontend` | Angular | :4200 | **Cloudflare Pages** |
+| Observability | Micrometer + OpenTelemetry SDK (no agent) | Prometheus, Loki, Tempo, Grafana :3000 | **Grafana Cloud** (OTLP) |
 
 Spring Boot 3.5, Java 21, Maven multi-module. Every service image is tuned to run in **512 MB RAM**
 (`-Xmx256m`, capped metaspace/code cache/direct memory, Serial GC — see each `Dockerfile`).
@@ -44,16 +45,57 @@ live in the shared **`common`** module. Messages are JSON (Spring Kafka `JsonSer
 Each service declares both topics (2 partitions); `KafkaAdmin` creates them if missing
 (disable with `APP_KAFKA_CREATE_TOPICS=false`).
 
+## Observability
+
+All five services share the same wiring from the `common` module — no Java agent, so each JVM stays
+within 512 MB:
+
+| Signal | How | Local | Prod |
+|---|---|---|---|
+| Metrics | Micrometer; `/actuator/prometheus` on every service + OTLP push (`micrometer-registry-otlp`) | Prometheus scrapes | OTLP → Grafana Cloud (Mimir) |
+| Traces | Micrometer Tracing → OpenTelemetry bridge → OTLP; W3C `traceparent` propagated by the gateway, HTTP clients/servers and **Kafka record headers** | OTLP → Tempo | OTLP → Grafana Cloud (Tempo) |
+| Logs | Structured JSON on stdout (`logstash` format incl. `traceId`/`spanId`) + Logback → OTLP appender (`opentelemetry-logback-appender`) | OTLP → Loki | OTLP → Grafana Cloud (Loki) |
+
+Custom metrics:
+
+| Metric (Prometheus name) | Service | Tags |
+|---|---|---|
+| `users_registered_total` | user-service | |
+| `orders_placed_total` | order-service | |
+| `payments_processed_total` | payment-service | `status` = APPROVED / DECLINED |
+| `notifications_stored_total` | notification-service | `type` |
+| `events_published_seconds_{count,sum,max}` (send → broker ack) | order-, payment-service | `topic`, `outcome` |
+| `events_consumed_seconds_{count,sum,max}` (listener processing) | payment-, notification-service | `topic`, `outcome` |
+| `events_consume_lag_seconds_{count,sum,max}` (produce → consume) | payment-, notification-service | `topic` |
+| `spring_cloud_gateway_requests_seconds_*` | api-gateway | `routeId`, `outcome`, … |
+
+Plus the standard `http_server_requests_seconds_*`, JVM, process and Kafka client metrics.
+
+Configuration is the standard OpenTelemetry env vars, mapped onto Spring Boot by
+`ObservabilityEnvironmentPostProcessor` (see `.env.example`): `OTEL_EXPORTER_OTLP_ENDPOINT`
+(+ `/v1/traces|logs|metrics`), optional per-signal `OTEL_EXPORTER_OTLP_*_ENDPOINT`,
+`OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_SERVICE_NAME`,
+`OTEL_RESOURCE_ATTRIBUTES`. A signal without an endpoint is simply not exported. Sampling is 100%
+(low traffic); override with `MANAGEMENT_TRACING_SAMPLING_PROBABILITY`.
+
+**Dashboards** — one per service (business + Kafka panels, HTTP, JVM, logs, recent traces), generated
+by `observability/dashboards/generate.py`. They use datasource variables and the same metric names in
+both environments: locally Prometheus' scrape `job` is the service name, and Grafana Cloud derives
+`job` from `OTEL_SERVICE_NAME`; OTLP timers are exported in seconds. Loki/Tempo are linked both ways
+(log → trace via `trace_id`, span → logs).
+
 ## Repository layout
 
 ```
 pom.xml                  parent POM (modules + Spring Cloud BOM)
-common/                  event records, topic names, Kafka SASL/CA env wiring, topic auto-config
+common/                  event records, topics, Kafka SASL/CA wiring, observability wiring, Kafka metrics
 api-gateway/  user-service/  order-service/  payment-service/  notification-service/
 frontend/                Angular app calling the gateway
 docker-compose.yml       postgres, mongo, kafka (KRaft) + the 5 services
 Tiltfile                 fast inner dev loop with live_update
+observability/           Prometheus/Tempo config, Grafana provisioning, dashboards (+ generator)
 scripts/smoke-test.sh    end-to-end test through the gateway (local, CI and prod)
+scripts/verify-observability.sh   checks metrics, logs and a cross-service trace in the local stack
 .github/workflows/       ci.yml (PRs) and deploy.yml (main)
 .env.example             production env vars reference
 ```
@@ -77,6 +119,7 @@ Everything is configured through environment variables with local defaults.
 | ″ | `KAFKA_USERNAME` / `KAFKA_PASSWORD` (set ⇒ `SASL_SSL`) | unset (PLAINTEXT) |
 | ″ | `KAFKA_SASL_MECHANISM` | `SCRAM-SHA-256` |
 | ″ | `KAFKA_CA_CERT` (PEM; `\n` escapes OK) | unset (JVM default trust store) |
+| all | `OTEL_EXPORTER_OTLP_*`, `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | unset (no OTLP export) |
 | frontend (build time) | `API_URL` | `http://localhost:8080` |
 
 ## Running locally
@@ -86,8 +129,10 @@ Prerequisites: JDK 21+, Node 20.19+ / 22+, Docker. Maven is not needed — use `
 ### Option A — Docker Compose (everything in containers)
 
 ```bash
-docker compose up --build --wait   # postgres, mongo, kafka + 5 services
+docker compose up --build --wait   # postgres, mongo, kafka, 5 services, prometheus/loki/tempo/grafana
 scripts/smoke-test.sh              # end-to-end check through the gateway
+scripts/verify-observability.sh    # metrics, logs and a cross-service trace arrived
+open http://localhost:3000         # Grafana (anonymous admin) -> folder "devops-setup"
 cd frontend && npm ci && npm start # http://localhost:4200
 ```
 
@@ -108,7 +153,7 @@ Tilt loads `docker-compose.yml` and, for each Spring service:
    changed classes/jars into the running container and restarts it — no image rebuild.
 
 Labels: **backend** (services + compile steps), **db** (postgres, mongo), **messaging** (kafka),
-**frontend** (`npm ci` + `ng serve`).
+**observability** (prometheus, loki, tempo, grafana), **frontend** (`npm ci` + `ng serve`).
 
 ### Option C — plain Maven
 
@@ -147,8 +192,8 @@ scripts/smoke-test.sh [GATEWAY_URL] [TIMEOUT_S]   # full event flow against a ru
 ## CI/CD
 
 - **`ci.yml`** — on every pull request: `./mvnw verify`, Angular production build, and an
-  **end-to-end job** that builds all images, starts the full compose stack (incl. Kafka) and runs
-  `scripts/smoke-test.sh`.
+  **end-to-end job** that builds all images, starts the full compose stack (incl. Kafka and the
+  observability stack), runs `scripts/smoke-test.sh` and then `scripts/verify-observability.sh`.
 - **`deploy.yml`** — on push to `main`: runs CI, deploys the frontend to Cloudflare Pages, and for
   each of the 5 services builds and pushes `ghcr.io/<owner>/devops-setup-<service>:{latest,<sha>}`
   and calls that service's Render deploy hook with `imgURL` set to the exact `<sha>` image.
@@ -223,7 +268,27 @@ CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
   npx wrangler pages deploy dist/frontend/browser --project-name devops-setup --branch main
 ```
 
-### 6. Verify
+### 6. Grafana Cloud (observability)
+
+On each Render service set the OTLP env block from *Grafana Cloud → your stack → OpenTelemetry →
+Configure* (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`,
+`OTEL_EXPORTER_OTLP_HEADERS`) plus `OTEL_SERVICE_NAME=<service>` and
+`OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=prod`. Import the dashboards with a service
+account token (role Editor):
+
+```bash
+for f in observability/dashboards/*.json; do
+  jq '{dashboard: (. | del(.id)), overwrite: true}' "$f" |
+    curl -fsS -X POST "https://<stack>.grafana.net/api/dashboards/db" \
+      -H "Authorization: Bearer $GRAFANA_SA_TOKEN" -H 'Content-Type: application/json' -d @-
+done
+```
+
+> Free-tier limits: 10k active metric series, 50 GB logs, 50 GB traces, 14-day retention. The services
+> push metrics once per minute (`management.otlp.metrics.export.step=60s`) and no latency histograms
+> (averages only), which keeps 5 services well under the series limit.
+
+### 7. Verify
 
 ```bash
 scripts/smoke-test.sh https://api-gateway-xxxx.onrender.com 300

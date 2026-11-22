@@ -29,7 +29,7 @@ prom_value() { # promql -> prints value if > 0
 
 echo "==> Prometheus (metrics)"
 for s in "${SERVICES[@]}"; do until_ok "up{job=\"$s\"}" prom_value "up{job=\"$s\"}"; done
-until_ok "orders_created_total"                      prom_value 'sum(orders_created_total{job="order-service"})'
+until_ok "orders_placed_total"                       prom_value 'sum(orders_placed_total{job="order-service"})'
 until_ok "payments_processed_total{status=APPROVED}" prom_value 'sum(payments_processed_total{job="payment-service",status="APPROVED"})'
 until_ok "events_published (order-service)"         prom_value 'sum(events_published_seconds_count{job="order-service",outcome="success"})'
 until_ok "events_consumed (notification-service)"   prom_value 'sum(events_consumed_seconds_count{job="notification-service",outcome="success"})'
