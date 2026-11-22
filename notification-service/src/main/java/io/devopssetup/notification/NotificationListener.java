@@ -4,6 +4,8 @@ import io.devopssetup.common.events.OrderCreated;
 import io.devopssetup.common.events.PaymentProcessed;
 import io.devopssetup.common.events.Topics;
 import io.devopssetup.notification.Notification.Type;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -16,9 +18,11 @@ public class NotificationListener {
     private static final Logger log = LoggerFactory.getLogger(NotificationListener.class);
 
     private final NotificationRepository notifications;
+    private final MeterRegistry registry;
 
-    public NotificationListener(NotificationRepository notifications) {
+    public NotificationListener(NotificationRepository notifications, MeterRegistry registry) {
         this.notifications = notifications;
+        this.registry = registry;
     }
 
     @KafkaListener(topics = Topics.ORDER_CREATED)
@@ -35,6 +39,8 @@ public class NotificationListener {
 
     private void store(Notification n) {
         notifications.save(n);
+        Counter.builder("notifications.stored").description("Notifications stored, by event type")
+                .tag("type", n.type().name()).register(registry).increment();
         log.info("[notify user {}] {} (order {})", n.userId(), n.message(), n.orderId());
     }
 }

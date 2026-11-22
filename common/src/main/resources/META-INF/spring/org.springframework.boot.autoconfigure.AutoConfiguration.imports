@@ -1,1 +1,3 @@
 io.devopssetup.common.kafka.KafkaTopicsAutoConfiguration
+io.devopssetup.common.kafka.KafkaEventsAutoConfiguration
+io.devopssetup.common.observability.OtlpLogsAutoConfiguration
