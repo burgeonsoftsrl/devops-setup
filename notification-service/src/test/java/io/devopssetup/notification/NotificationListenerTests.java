@@ -4,6 +4,7 @@ import io.devopssetup.common.events.OrderCreated;
 import io.devopssetup.common.events.PaymentProcessed;
 import io.devopssetup.common.events.PaymentProcessed.Status;
 import org.junit.jupiter.api.Test;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
@@ -16,7 +17,8 @@ import static org.mockito.Mockito.verify;
 class NotificationListenerTests {
 
     NotificationRepository repo = mock(NotificationRepository.class);
-    NotificationListener listener = new NotificationListener(repo);
+    SimpleMeterRegistry registry = new SimpleMeterRegistry();
+    NotificationListener listener = new NotificationListener(repo, registry);
 
     @Test
     void storesOrderCreated() {
@@ -27,6 +29,7 @@ class NotificationListenerTests {
         assertThat(saved.getValue().type()).isEqualTo(Notification.Type.ORDER_CREATED);
         assertThat(saved.getValue().message()).isEqualTo("Order received: 2 x Book");
         assertThat(saved.getValue().userId()).isEqualTo(7L);
+        assertThat(registry.get("notifications.stored").tag("type", "ORDER_CREATED").counter().count()).isEqualTo(1.0);
     }
 
     @Test

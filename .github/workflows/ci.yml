@@ -39,7 +39,7 @@ jobs:
       - run: npm run build
 
   e2e:
-    name: Docker images + end-to-end (compose + Kafka)
+    name: Docker images + end-to-end (compose + Kafka + observability)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,6 +47,8 @@ jobs:
         run: docker compose up -d --build --wait --wait-timeout 300
       - name: Smoke test (user -> order -> Kafka -> payment -> notifications)
         run: scripts/smoke-test.sh http://localhost:8080 180
+      - name: Observability (Prometheus metrics, Loki logs, Tempo trace across Kafka)
+        run: scripts/verify-observability.sh 180
       - name: Logs on failure
         if: failure()
         run: docker compose ps && docker compose logs --tail=150

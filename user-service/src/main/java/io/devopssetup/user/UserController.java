@@ -1,5 +1,7 @@
 package io.devopssetup.user;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -23,9 +25,11 @@ public class UserController {
     }
 
     private final UserRepository users;
+    private final Counter usersRegistered;
 
-    public UserController(UserRepository users) {
+    public UserController(UserRepository users, MeterRegistry registry) {
         this.users = users;
+        this.usersRegistered = Counter.builder("users.registered").description("Users registered").register(registry);
     }
 
     @GetMapping
@@ -45,6 +49,8 @@ public class UserController {
         if (users.existsByEmail(request.email())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
         }
-        return users.save(new User(request.name(), request.email()));
+        User user = users.save(new User(request.name(), request.email()));
+        usersRegistered.increment();
+        return user;
     }
 }

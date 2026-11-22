@@ -11,7 +11,7 @@
 docker_compose('docker-compose.yml')
 
 SPRING_SERVICES = ['api-gateway', 'user-service', 'order-service', 'payment-service', 'notification-service']
-USES_COMMON = ['order-service', 'payment-service', 'notification-service']  # Kafka event contracts
+USES_COMMON = SPRING_SERVICES  # observability wiring (+ Kafka event contracts)
 
 for svc in SPRING_SERVICES:
     out = '%s/target/dev' % svc
@@ -48,6 +48,12 @@ for svc in SPRING_SERVICES:
 dc_resource('postgres', labels=['db'])
 dc_resource('mongo', labels=['db'])
 dc_resource('kafka', labels=['messaging'])
+
+# Observability: Grafana http://localhost:3000 (anonymous admin), dashboards provisioned per service
+dc_resource('prometheus', labels=['observability'], links=['http://localhost:9090'])
+dc_resource('loki', labels=['observability'])
+dc_resource('tempo', labels=['observability'])
+dc_resource('grafana', labels=['observability'], links=['http://localhost:3000/dashboards'])
 
 # Angular dev server (talks to the gateway on :8080)
 local_resource(
