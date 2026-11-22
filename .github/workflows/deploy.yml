@@ -30,6 +30,10 @@ jobs:
             hook_secret: RENDER_DEPLOY_HOOK_USER_SERVICE
           - service: order-service
             hook_secret: RENDER_DEPLOY_HOOK_ORDER_SERVICE
+          - service: payment-service
+            hook_secret: RENDER_DEPLOY_HOOK_PAYMENT_SERVICE
+          - service: notification-service
+            hook_secret: RENDER_DEPLOY_HOOK_NOTIFICATION_SERVICE
     steps:
       - uses: actions/checkout@v4
 

@@ -7,7 +7,7 @@ spring:
   datasource:
     # Local default: docker-compose Postgres. Prod (Neon), e.g.:
     #   DB_URL=jdbc:postgresql://ep-xxx-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/users}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/app}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
     hikari:

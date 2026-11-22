@@ -9,9 +9,13 @@ ARG APP_SOURCE=build
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /src
 COPY pom.xml .
+COPY common/pom.xml common/
 COPY api-gateway/pom.xml api-gateway/
 COPY user-service/pom.xml user-service/
 COPY order-service/pom.xml order-service/
+COPY payment-service/pom.xml payment-service/
+COPY notification-service/pom.xml notification-service/
+COPY common/src common/src
 COPY api-gateway/src api-gateway/src
 RUN --mount=type=cache,target=/root/.m2 \
     mvn -B -q -pl api-gateway -am package -DskipTests \
@@ -33,4 +37,6 @@ USER app
 ENV JAVA_TOOL_OPTIONS="-Xms64m -Xmx256m -Xss512k -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -XX:MaxDirectMemorySize=64m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
 ENV PORT=8080
 EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=6 \
+  CMD wget -qO- "http://localhost:${PORT}/actuator/health" >/dev/null || exit 1
 ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]

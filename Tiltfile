@@ -10,7 +10,8 @@
 
 docker_compose('docker-compose.yml')
 
-SPRING_SERVICES = ['api-gateway', 'user-service', 'order-service']
+SPRING_SERVICES = ['api-gateway', 'user-service', 'order-service', 'payment-service', 'notification-service']
+USES_COMMON = ['order-service', 'payment-service', 'notification-service']  # Kafka event contracts
 
 for svc in SPRING_SERVICES:
     out = '%s/target/dev' % svc
@@ -23,8 +24,11 @@ for svc in SPRING_SERVICES:
             'mkdir -p %s' % out,
             'rsync -rc --delete %s/target/staging/ %s/' % (svc, out),
         ]),
-        deps=['pom.xml', '%s/pom.xml' % svc, '%s/src/main' % svc],
+        deps=['pom.xml', '%s/pom.xml' % svc, '%s/src/main' % svc] +
+             (['common/pom.xml', 'common/src/main'] if svc in USES_COMMON else []),
         labels=['backend'],
+        # local_resources run one at a time by default (allow_parallel=False), so the
+        # per-service `-am` builds never race on common/target.
     )
 
     docker_build(
@@ -42,7 +46,8 @@ for svc in SPRING_SERVICES:
     dc_resource(svc, resource_deps=['%s-compile' % svc], labels=['backend'])
 
 dc_resource('postgres', labels=['db'])
-dc_resource('redis', labels=['db'])
+dc_resource('mongo', labels=['db'])
+dc_resource('kafka', labels=['messaging'])
 
 # Angular dev server (talks to the gateway on :8080)
 local_resource(

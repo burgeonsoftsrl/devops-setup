@@ -1,0 +1,48 @@
+server:
+  port: ${PORT:8083}
+
+spring:
+  application:
+    name: payment-service
+  datasource:
+    # Same Postgres database as user-service (Neon in prod), separate schema.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/app}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    properties:
+      hibernate:
+        default_schema: ${PAYMENTS_SCHEMA:payments}
+        hbm2ddl:
+          create_namespaces: true
+  kafka:
+    # Local default: docker-compose Kafka. Prod: managed SASL_SSL cluster; set KAFKA_USERNAME,
+    # KAFKA_PASSWORD, optionally KAFKA_SASL_MECHANISM and KAFKA_CA_CERT (see common module).
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        # fail fast instead of blocking HTTP requests for 60s when Kafka is unreachable
+        max.block.ms: 10000
+    consumer:
+      group-id: ${spring.application.name}
+      auto-offset-reset: earliest
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: io.devopssetup.common.events
+
+app:
+  payments:
+    approval-limit: ${PAYMENT_APPROVAL_LIMIT:1000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ApiService, Order, User } from './api.service';
+import { ApiService, Notification, Order, Payment, User } from './api.service';
 import { environment } from '../environments/environment';
 
 @Component({
@@ -47,9 +47,28 @@ import { environment } from '../environments/environment';
         </form>
         <ul>
           @for (o of orders(); track o.id) {
-            <li>{{ o.quantity }} × {{ o.product }} &#64; {{ o.price }} (user #{{ o.userId }})</li>
+            <li>
+              {{ o.quantity }} × {{ o.product }} &#64; {{ o.price }} (user #{{ o.userId }}) —
+              @if (paymentFor(o.id); as p) {
+                <span [class]="p.status === 'APPROVED' ? 'ok' : 'error'">{{ p.status }} {{ p.amount }}</span>
+              } @else {
+                <span class="muted">payment pending…</span>
+              }
+            </li>
           } @empty {
             <li class="muted">No orders yet</li>
+          }
+        </ul>
+      </section>
+
+      <section>
+        <h2>Notifications <button type="button" (click)="refresh()">Refresh</button></h2>
+        <p class="muted">Order → Kafka → payment-service → Kafka → notification-service</p>
+        <ul>
+          @for (n of notifications(); track n.id) {
+            <li><code>{{ n.type }}</code> {{ n.message }} <span class="muted">(order {{ n.orderId.slice(0, 8) }})</span></li>
+          } @empty {
+            <li class="muted">No notifications yet</li>
           }
         </ul>
       </section>
@@ -61,6 +80,7 @@ import { environment } from '../environments/environment';
     input, select, button { padding: .4rem .6rem; font: inherit; }
     .muted { color: #666; }
     .error { color: #b00020; }
+    .ok { color: #1b7f3b; }
   `,
 })
 export class App implements OnInit {
@@ -69,6 +89,8 @@ export class App implements OnInit {
 
   protected readonly users = signal<User[]>([]);
   protected readonly orders = signal<Order[]>([]);
+  protected readonly payments = signal<Payment[]>([]);
+  protected readonly notifications = signal<Notification[]>([]);
   protected readonly error = signal<string | null>(null);
 
   protected userName = '';
@@ -106,15 +128,23 @@ export class App implements OnInit {
         next: () => {
           this.orderProduct = '';
           this.refresh();
+          // Payment + notifications arrive asynchronously via Kafka.
+          setTimeout(() => this.refresh(), 3000);
         },
         error: (e) => this.fail(e),
       });
   }
 
-  private refresh(): void {
+  protected paymentFor(orderId: string): Payment | undefined {
+    return this.payments().find((p) => p.orderId === orderId);
+  }
+
+  protected refresh(): void {
     this.error.set(null);
     this.api.listUsers().subscribe({ next: (u) => this.users.set(u), error: (e) => this.fail(e) });
     this.api.listOrders().subscribe({ next: (o) => this.orders.set(o), error: (e) => this.fail(e) });
+    this.api.listPayments().subscribe({ next: (p) => this.payments.set(p), error: (e) => this.fail(e) });
+    this.api.listNotifications().subscribe({ next: (n) => this.notifications.set(n), error: (e) => this.fail(e) });
   }
 
   private fail(e: HttpErrorResponse): void {
