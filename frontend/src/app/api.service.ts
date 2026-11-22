@@ -18,6 +18,24 @@ export interface Order {
   createdAt: string;
 }
 
+export interface Payment {
+  id: number;
+  orderId: string;
+  userId: number;
+  amount: number;
+  status: 'APPROVED' | 'DECLINED';
+  processedAt: string;
+}
+
+export interface Notification {
+  id: string;
+  type: 'ORDER_CREATED' | 'PAYMENT_PROCESSED';
+  orderId: string;
+  userId: number;
+  message: string;
+  receivedAt: string;
+}
+
 /** All calls go through the API gateway. */
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -38,5 +56,13 @@ export class ApiService {
 
   createOrder(body: { userId: number; product: string; quantity: number; price: number }) {
     return this.http.post<Order>(`${this.base}/api/orders`, body);
+  }
+
+  listPayments() {
+    return this.http.get<Payment[]>(`${this.base}/api/payments`);
+  }
+
+  listNotifications() {
+    return this.http.get<Notification[]>(`${this.base}/api/notifications`);
   }
 }

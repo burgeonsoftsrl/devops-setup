@@ -33,9 +33,11 @@ public class OrderController {
     }
 
     private final OrderRepository orders;
+    private final OrderEventPublisher events;
 
-    public OrderController(OrderRepository orders) {
+    public OrderController(OrderRepository orders, OrderEventPublisher events) {
         this.orders = orders;
+        this.events = events;
     }
 
     @GetMapping
@@ -52,7 +54,9 @@ public class OrderController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Order create(@Valid @RequestBody CreateOrderRequest request) {
-        return orders.save(new Order(UUID.randomUUID().toString(), request.userId(), request.product(),
+        Order order = orders.save(new Order(UUID.randomUUID().toString(), request.userId(), request.product(),
                 request.quantity(), request.price(), Instant.now()));
+        events.orderCreated(order);
+        return order;
     }
 }
