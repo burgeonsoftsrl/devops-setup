@@ -31,4 +31,6 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        # Secure by default: only health is public (Render health checks).
+        # Non-prod enables more via MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE (see docker-compose.yml).
+        include: health

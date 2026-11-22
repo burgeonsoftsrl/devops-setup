@@ -53,7 +53,7 @@ within 512 MB:
 
 | Signal | How | Local | Prod |
 |---|---|---|---|
-| Metrics | Micrometer; `/actuator/prometheus` on every service + OTLP push (`micrometer-registry-otlp`) | Prometheus scrapes | OTLP → Grafana Cloud (Mimir) |
+| Metrics | Micrometer; `/actuator/prometheus` (non-prod only) + OTLP push (`micrometer-registry-otlp`) | Prometheus scrapes | OTLP → Grafana Cloud (Mimir) |
 | Traces | Micrometer Tracing → OpenTelemetry bridge → OTLP; W3C `traceparent` propagated by the gateway, HTTP clients/servers and **Kafka record headers** | OTLP → Tempo | OTLP → Grafana Cloud (Tempo) |
 | Logs | Structured JSON on stdout (`logstash` format incl. `traceId`/`spanId`) + Logback → OTLP appender (`opentelemetry-logback-appender`) | OTLP → Loki | OTLP → Grafana Cloud (Loki) |
 
@@ -71,6 +71,12 @@ Custom metrics:
 | `spring_cloud_gateway_requests_seconds_*` | api-gateway | `routeId`, `outcome`, … |
 
 Plus the standard `http_server_requests_seconds_*`, JVM, process and Kafka client metrics.
+
+**Actuator exposure is secure by default:** only `/actuator/health` is public (Render's health
+check). Non-prod environments opt in with
+`MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus` (`,gateway` for the gateway) —
+`docker-compose.yml` (and therefore Tilt and CI) sets it. When running a service directly with
+`./mvnw spring-boot:run`, export it yourself if you want `/actuator/prometheus`.
 
 Configuration is the standard OpenTelemetry env vars, mapped onto Spring Boot by
 `ObservabilityEnvironmentPostProcessor` (see `.env.example`): `OTEL_EXPORTER_OTLP_ENDPOINT`
