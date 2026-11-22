@@ -34,7 +34,7 @@ USER app
 
 # Sized for a 512MB container (e.g. Render free tier): heap + metaspace +
 # code cache + direct buffers + thread stacks stay comfortably under the limit.
-ENV JAVA_TOOL_OPTIONS="-Xms64m -Xmx256m -Xss512k -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -XX:MaxDirectMemorySize=64m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
+ENV JAVA_TOOL_OPTIONS="-Xms64m -Xmx256m -Xss512k -XX:MaxMetaspaceSize=160m -XX:ReservedCodeCacheSize=48m -XX:MaxDirectMemorySize=64m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
 ENV PORT=8082
 EXPOSE 8082
 HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=6 \
