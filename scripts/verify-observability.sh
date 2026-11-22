@@ -13,7 +13,7 @@ TIMEOUT=${1:-120}
 deadline=$(( $(date +%s) + TIMEOUT ))
 SERVICES=(api-gateway user-service order-service payment-service notification-service)
 
-fail() { echo "FAIL: $*" >&2; exit 1; }
+fail() { echo "FAIL: $*" >&2; [[ "${IN_TRACES:-}" == 1 ]] && tempo_debug; exit 1; }
 until_ok() { # desc, command...
   local desc=$1; shift
   while (( $(date +%s) < deadline )); do
@@ -46,6 +46,7 @@ for s in "${SERVICES[@]}"; do until_ok "{service_name=\"$s\"}" loki_count "{serv
 until_ok "payment-service logs carrying trace_id" loki_count '{service_name="payment-service"} | trace_id != ""'
 
 echo "==> Tempo (traces)"
+IN_TRACES=1
 trace_services() { # newest trace that reached notification-service -> its distinct services
   local id
   id=$(curl -fsS -G "$TEMPO/api/search" --data-urlencode 'q={resource.service.name="notification-service"}' \
@@ -53,6 +54,18 @@ trace_services() { # newest trace that reached notification-service -> its disti
   curl -fsS "$TEMPO/api/traces/$id" | jq -er '
     [(.batches // .resourceSpans)[] | .resource.attributes[] | select(.key=="service.name") | .value.stringValue]
     | unique | select(length >= 4) | join(",")'
+}
+tempo_debug() {
+  echo "--- Tempo diagnostics"
+  for s in "${SERVICES[@]}"; do
+    printf '  %-22s ' "$s"
+    curl -fsS -G "$TEMPO/api/search" --data-urlencode "q={resource.service.name=\"$s\"}" --data-urlencode limit=50 \
+      | jq -c '{traces: (.traces | length), roots: ([.traces[].rootServiceName] | unique), names: ([.traces[].rootTraceName] | unique | .[:6])}' \
+      || echo "search failed"
+  done
+  id=$(curl -fsS -G "$TEMPO/api/search" --data-urlencode 'q={resource.service.name="notification-service"}' --data-urlencode limit=20 \
+       | jq -r '[.traces[]] | sort_by(.startTimeUnixNano) | last | .traceID // empty')
+  [[ -n "$id" ]] && curl -fsS "$TEMPO/api/traces/$id" | jq -c '{keys: keys, services: [(.batches // .resourceSpans // [])[] | .resource.attributes[]? | select(.key=="service.name") | .value.stringValue] | unique}'
 }
 until_ok "one trace spans" trace_services
 services=$(trace_services)
