@@ -14,7 +14,8 @@ A zero-cost training monorepo for practising event-driven microservices + DevOps
 | Observability | Micrometer + OpenTelemetry SDK (no agent) | Prometheus, Loki, Tempo, Grafana :3000 | **Grafana Cloud** (OTLP) |
 
 Spring Boot 3.5, Java 21, Maven multi-module. Every service image is tuned to run in **512 MB RAM**
-(`-Xmx256m`, capped metaspace/code cache/direct memory, Serial GC — see each `Dockerfile`).
+(`-Xmx256m`, metaspace ≤160 MB, capped code cache/direct memory, Serial GC — see each `Dockerfile`).
+Measured in prod with tracing/metrics/logs on: ≤100 MB heap committed and ≤140 MB non-heap per service.
 
 ```
 browser ─► frontend (Cloudflare Pages)
@@ -292,4 +293,6 @@ done
 
 ```bash
 scripts/smoke-test.sh https://api-gateway-xxxx.onrender.com 300
+# metrics, logs and the cross-service trace in Grafana Cloud:
+GRAFANA_URL=https://<stack>.grafana.net GRAFANA_SA_TOKEN=glsa_... scripts/verify-observability.sh 300
 ```
