@@ -10,7 +10,8 @@ set -euo pipefail
 
 GW="${1:-http://localhost:8080}"; GW="${GW%/}"
 TIMEOUT="${2:-120}"
-deadline=$(( $(date +%s) + TIMEOUT ))
+start=$(date +%s)
+deadline=$(( start + TIMEOUT ))
 
 step() { printf '\n==> %s\n' "$*"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -31,12 +32,17 @@ wait_for() {
 http() { curl -fsS -m 60 "$@"; }
 
 step "Waiting for every service to be UP via $GW (timeout ${TIMEOUT}s)"
-# Hitting each route also wakes sleeping free-tier instances so Kafka consumers start.
-wait_for "gateway health" sh -c "curl -fsS -m 60 '$GW/actuator/health' | jq -er 'select(.status==\"UP\") | .status'"
+wait_for "gateway health" sh -c "curl -fsS -m 60 '$GW/actuator/health' | jq -er 'select(.status==\"UP\") | .status'" >/dev/null
+echo "  gateway UP"
+# Hit every backend route in parallel: on free tiers each sleeping instance needs ~2 min to wake
+# (and its Kafka consumers only start once it's up), so waking them one by one doesn't fit.
+pids=()
 for path in users orders payments notifications; do
-  wait_for "/api/$path" sh -c "curl -fsS -m 60 -o /dev/null -w '%{http_code}' '$GW/api/$path' | grep -x 200"
-  echo "  /api/$path OK"
+  ( wait_for "/api/$path" sh -c "curl -fsS -m 60 -o /dev/null -w '%{http_code}' '$GW/api/$path' | grep -x 200" >/dev/null \
+      && echo "  /api/$path OK after $(( $(date +%s) - start ))s" ) &
+  pids+=($!)
 done
+for pid in "${pids[@]}"; do wait "$pid" || fail "a backend did not become ready in time"; done
 
 step "Creating user"
 email="smoke-$(date +%s)-$RANDOM@example.com"

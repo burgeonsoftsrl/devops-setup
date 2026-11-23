@@ -1,0 +1,26 @@
+name: Set up JDK 21 + Maven caches
+description: >
+  Temurin 21 with the ~/.m2/repository cache (setup-java) plus a cache for the Maven distribution
+  that ./mvnw downloads, so CI jobs don't hit Maven Central (which rate-limits with HTTP 429).
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '21'
+        cache: maven
+    - name: Cache Maven wrapper distribution
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2/wrapper
+        key: maven-wrapper-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}
+    - name: Ensure Maven wrapper distribution (retry with backoff on cache miss)
+      shell: bash
+      run: |
+        for i in 1 2 3 4 5; do
+          if ./mvnw -B -q -v >/dev/null 2>&1; then echo "Maven wrapper ready"; exit 0; fi
+          echo "::warning::Maven wrapper download failed (attempt $i), retrying in $((i * 15))s"
+          sleep $((i * 15))
+        done
+        ./mvnw -B -v

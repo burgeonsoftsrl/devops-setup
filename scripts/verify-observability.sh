@@ -9,6 +9,7 @@
 #                           scripts/verify-observability.sh 300
 #                           (queries go through Grafana's datasource proxy; optional
 #                            PROM_UID / LOKI_UID / TEMPO_UID, default grafanacloud-{prom,logs,traces})
+#   LOGS_WINDOW_MINUTES (default 60): how far back to look for each service's logs
 set -euo pipefail
 
 CURL=(curl -fsS -m 60)
@@ -27,6 +28,8 @@ else
   MODE=local
 fi
 TIMEOUT=${1:-120}
+# Look-back for logs: quiet services (e.g. the gateway) mostly log at startup only.
+LOGS_WINDOW_MINUTES=${LOGS_WINDOW_MINUTES:-60}
 deadline=$(( $(date +%s) + TIMEOUT ))
 SERVICES=(api-gateway user-service order-service payment-service notification-service)
 
@@ -57,9 +60,9 @@ until_ok "events_consume_lag recorded"              prom_value 'sum(events_consu
 until_ok "gateway route metrics"                    prom_value 'sum(spring_cloud_gateway_requests_seconds_count{job="api-gateway",routeId="order-service"})'
 
 echo "==> Logs ($MODE)"
-loki_count() { # logql selector -> number of lines in the last 15 min
+loki_count() { # logql selector -> number of lines in the last $LOGS_WINDOW_MINUTES min
   "${CURL[@]}" -G "$LOKI/loki/api/v1/query_range" --data-urlencode "query=$1" \
-    --data-urlencode "start=$(( ($(date +%s) - 900) * 1000000000 ))" --data-urlencode "limit=100" \
+    --data-urlencode "start=$(( ($(date +%s) - LOGS_WINDOW_MINUTES * 60) * 1000000000 ))" --data-urlencode "limit=100" \
   | jq -er '[.data.result[].values | length] | add | select(. > 0)'
 }
 for s in "${SERVICES[@]}"; do until_ok "{service_name=\"$s\"}" loki_count "{service_name=\"$s\"}"; done
