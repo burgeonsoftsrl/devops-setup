@@ -15,3 +15,12 @@ runs:
       with:
         path: ~/.m2/wrapper
         key: maven-wrapper-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}
+    - name: Ensure Maven wrapper distribution (retry with backoff on cache miss)
+      shell: bash
+      run: |
+        for i in 1 2 3 4 5; do
+          if ./mvnw -B -q -v >/dev/null 2>&1; then echo "Maven wrapper ready"; exit 0; fi
+          echo "::warning::Maven wrapper download failed (attempt $i), retrying in $((i * 15))s"
+          sleep $((i * 15))
+        done
+        ./mvnw -B -v
