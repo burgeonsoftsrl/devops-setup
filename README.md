@@ -102,7 +102,8 @@ docker-compose.yml       postgres, mongo, kafka (KRaft) + the 5 services
 Tiltfile                 fast inner dev loop with live_update
 observability/           Prometheus/Tempo config, Grafana provisioning, dashboards (+ generator)
 scripts/smoke-test.sh    end-to-end test through the gateway (local, CI and prod)
-scripts/verify-observability.sh   checks metrics, logs and a cross-service trace in the local stack
+scripts/verify-observability.sh   checks metrics, logs and a cross-service trace (local stack or Grafana Cloud)
+scripts/build-jars.sh    builds + extracts jars on the host for the Dockerfiles' APP_SOURCE=local stage
 .github/workflows/       ci.yml (PRs) and deploy.yml (main)
 .env.example             production env vars reference
 ```
@@ -141,6 +142,12 @@ scripts/smoke-test.sh              # end-to-end check through the gateway
 scripts/verify-observability.sh    # metrics, logs and a cross-service trace arrived
 open http://localhost:3000         # Grafana (anonymous admin) -> folder "devops-setup"
 cd frontend && npm ci && npm start # http://localhost:4200
+```
+
+Faster rebuilds: compile on the host once (reusing your `~/.m2`) and let Docker just copy the jars:
+
+```bash
+scripts/build-jars.sh && APP_SOURCE=local docker compose up --build --wait
 ```
 
 ### Option B — Tilt (recommended inner loop)
@@ -198,6 +205,10 @@ scripts/smoke-test.sh [GATEWAY_URL] [TIMEOUT_S]   # full event flow against a ru
 
 ## CI/CD
 
+- Every Java job uses `.github/actions/setup-maven` (JDK 21 + cached `~/.m2/repository` and Maven
+  wrapper distribution), and Docker images are built from host-built jars (`scripts/build-jars.sh`,
+  `APP_SOURCE=local`) — so builds don't hammer Maven Central, which rate-limits with HTTP 429.
+  `.mvn/maven.config` additionally retries 429/503 responses.
 - **`ci.yml`** — on every pull request: `./mvnw verify`, Angular production build, and an
   **end-to-end job** that builds all images, starts the full compose stack (incl. Kafka and the
   observability stack), runs `scripts/smoke-test.sh` and then `scripts/verify-observability.sh`.
@@ -255,9 +266,9 @@ check path `/actuator/health`, env vars per `.env.example`. Copy each service's
 
 > **Free-tier behaviour to know about**
 > - Render free services **sleep after ~15 min without HTTP traffic** and wake on the next request
->   (30–60 s). A sleeping consumer doesn't consume — but Kafka keeps the events, so payment- and
+>   (~2 min for these JVMs, incl. Neon resuming). A sleeping service also stops pushing metrics/logs. A sleeping consumer doesn't consume — but Kafka keeps the events, so payment- and
 >   notification-service catch up from their committed offsets as soon as they wake.
->   `scripts/smoke-test.sh` wakes every service first.
+>   `scripts/smoke-test.sh` wakes all services in parallel first.
 > - Render's free plan includes a monthly pool of instance hours shared by all free services;
 >   don't add keep-alive pings for all 5 services or you'll exhaust it.
 

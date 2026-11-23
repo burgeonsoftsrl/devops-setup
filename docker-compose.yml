@@ -74,6 +74,8 @@ services:
     build:
       context: .
       dockerfile: user-service/Dockerfile
+      args:
+        APP_SOURCE: ${APP_SOURCE:-build}   # 'local' = use jars from scripts/build-jars.sh
     environment:
       <<: [*otel]
       OTEL_SERVICE_NAME: user-service
@@ -92,6 +94,8 @@ services:
     build:
       context: .
       dockerfile: order-service/Dockerfile
+      args:
+        APP_SOURCE: ${APP_SOURCE:-build}   # 'local' = use jars from scripts/build-jars.sh
     environment:
       <<: [*otel, *kafka-client]
       OTEL_SERVICE_NAME: order-service
@@ -110,6 +114,8 @@ services:
     build:
       context: .
       dockerfile: payment-service/Dockerfile
+      args:
+        APP_SOURCE: ${APP_SOURCE:-build}   # 'local' = use jars from scripts/build-jars.sh
     environment:
       <<: [*otel, *kafka-client]
       OTEL_SERVICE_NAME: payment-service
@@ -130,6 +136,8 @@ services:
     build:
       context: .
       dockerfile: notification-service/Dockerfile
+      args:
+        APP_SOURCE: ${APP_SOURCE:-build}   # 'local' = use jars from scripts/build-jars.sh
     environment:
       <<: [*otel, *kafka-client]
       OTEL_SERVICE_NAME: notification-service
@@ -148,6 +156,8 @@ services:
     build:
       context: .
       dockerfile: api-gateway/Dockerfile
+      args:
+        APP_SOURCE: ${APP_SOURCE:-build}   # 'local' = use jars from scripts/build-jars.sh
     environment:
       <<: [*otel]
       OTEL_SERVICE_NAME: api-gateway
