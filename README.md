@@ -10,7 +10,7 @@ A zero-cost training monorepo for practising event-driven microservices + DevOps
 | `payment-service` | Spring Boot + JPA, Kafka consumer/producer | :8083 → Postgres, Kafka | Render + **Neon** (schema `payments`) |
 | `notification-service` | Spring Boot + Spring Data MongoDB, Kafka consumer | :8084 → Mongo, Kafka | Render + **Atlas** (db `notifications`) |
 | Kafka | Apache Kafka 4 (KRaft) | :9092 | managed free tier (see [Kafka in production](#kafka-in-production)) |
-| `frontend` | Angular | :4200 | **Cloudflare Pages** |
+| `frontend` | Angular (nginx in Docker) | :4200 | **Cloudflare Pages** |
 | Observability | Micrometer + OpenTelemetry SDK (no agent) | Prometheus, Loki, Tempo, Grafana :3000 | **Grafana Cloud** (OTLP) |
 
 Spring Boot 3.5, Java 21, Maven multi-module. Every service image is tuned to run in **512 MB RAM**
@@ -97,8 +97,8 @@ both environments: locally Prometheus' scrape `job` is the service name, and Gra
 pom.xml                  parent POM (modules + Spring Cloud BOM)
 common/                  event records, topics, Kafka SASL/CA wiring, observability wiring, Kafka metrics
 api-gateway/  user-service/  order-service/  payment-service/  notification-service/
-frontend/                Angular app calling the gateway
-docker-compose.yml       postgres, mongo, kafka (KRaft) + the 5 services
+frontend/                Angular app calling the gateway (+ Dockerfile: nginx `runtime`, `ng serve` `dev` target)
+docker-compose.yml       postgres, mongo, kafka (KRaft), the 5 services, frontend, observability stack
 Tiltfile                 fast inner dev loop with live_update
 observability/           Prometheus/Tempo config, Grafana provisioning, dashboards (+ generator)
 scripts/smoke-test.sh    end-to-end test through the gateway (local, CI and prod)
@@ -132,17 +132,23 @@ Everything is configured through environment variables with local defaults.
 
 ## Running locally
 
-Prerequisites: JDK 21+, Node 20.19+ / 22+, Docker. Maven is not needed — use `./mvnw`.
+Prerequisites: Docker, JDK 21+ (only for host builds: `build-jars.sh`, Tilt, Option C). Maven is not
+needed — use `./mvnw`. Node 20.19+ / 22+ is only needed to run the frontend outside Docker.
 
 ### Option A — Docker Compose (everything in containers)
 
 ```bash
-docker compose up --build --wait   # postgres, mongo, kafka, 5 services, prometheus/loki/tempo/grafana
+docker compose up --build --wait   # postgres, mongo, kafka, 5 services, frontend, prometheus/loki/tempo/grafana
+open http://localhost:4200         # the app (Angular production build served by nginx)
 scripts/smoke-test.sh              # end-to-end check through the gateway
 scripts/verify-observability.sh    # metrics, logs and a cross-service trace arrived
 open http://localhost:3000         # Grafana (anonymous admin) -> folder "devops-setup"
-cd frontend && npm ci && npm start # http://localhost:4200
 ```
+
+The `frontend` service builds `frontend/Dockerfile` (target `runtime`): `npm run build:pages` with
+`API_URL=http://localhost:8080` (the browser calls the gateway directly), served by nginx with SPA
+fallback. For an `ng serve` dev server outside Docker: `cd frontend && npm ci && npm start`
+(stop the `frontend` container first — both use port 4200).
 
 Faster rebuilds: compile on the host once (reusing your `~/.m2`) and let Docker just copy the jars:
 
@@ -166,8 +172,12 @@ Tilt loads `docker-compose.yml` and, for each Spring service:
 3. on every later change under `src/main` (or `common/src/main`), **live_update** syncs only the
    changed classes/jars into the running container and restarts it — no image rebuild.
 
+The frontend runs in a container too: Tilt builds the Dockerfile's **`dev`** target (`ng serve` on
+:4200 instead of nginx) and live-syncs `frontend/src` and `frontend/public` into it, so edits
+hot-reload in the browser; a change to `package.json`/`package-lock.json` rebuilds the image.
+
 Labels: **backend** (services + compile steps), **db** (postgres, mongo), **messaging** (kafka),
-**observability** (prometheus, loki, tempo, grafana), **frontend** (`npm ci` + `ng serve`).
+**observability** (prometheus, loki, tempo, grafana), **frontend** (`ng serve` container).
 
 ### Option C — plain Maven
 
