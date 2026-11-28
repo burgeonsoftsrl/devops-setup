@@ -55,19 +55,17 @@ dc_resource('loki', labels=['observability'])
 dc_resource('tempo', labels=['observability'])
 dc_resource('grafana', labels=['observability'], links=['http://localhost:3000/dashboards'])
 
-# Angular dev server (talks to the gateway on :8080)
-local_resource(
-    'frontend-install',
-    cmd='npm ci',
-    dir='frontend',
-    deps=['frontend/package.json', 'frontend/package-lock.json'],
-    labels=['frontend'],
+# Angular frontend: the compose service builds the nginx `runtime` target; under Tilt we use
+# the `dev` target instead (ng serve on :4200, talks to the gateway on :8080) and live-sync
+# sources into it, so edits hot-reload in the browser without an image rebuild.
+docker_build(
+    'devops-setup/frontend',
+    context='frontend',
+    target='dev',
+    live_update=[
+        fall_back_on(['frontend/package.json', 'frontend/package-lock.json']),  # deps changed -> rebuild (npm ci)
+        sync('frontend/src', '/app/src'),
+        sync('frontend/public', '/app/public'),
+    ],
 )
-local_resource(
-    'frontend',
-    serve_cmd='npm start',
-    serve_dir='frontend',
-    resource_deps=['frontend-install', 'api-gateway'],
-    links=['http://localhost:4200'],
-    labels=['frontend'],
-)
+dc_resource('frontend', resource_deps=['api-gateway'], labels=['frontend'], links=['http://localhost:4200'])

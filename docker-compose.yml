@@ -176,6 +176,22 @@ services:
       - payment-service
       - notification-service
 
+  # Angular production build served by nginx. The browser calls the gateway directly on
+  # localhost:8080 (allowed by the gateway's CORS_ALLOWED_ORIGINS above).
+  # Tilt swaps in the Dockerfile's `dev` target (ng serve + live reload) instead.
+  frontend:
+    image: devops-setup/frontend
+    build:
+      context: frontend
+      target: runtime
+      args:
+        API_URL: http://localhost:8080
+    ports:
+      - "4200:4200"
+    mem_limit: 512m   # nginx needs ~10 MB; the headroom is for `ng serve` under Tilt
+    depends_on:
+      - api-gateway
+
   # ---------- observability (local) ----------
   prometheus:
     image: prom/prometheus:v3.16.0
